@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proyek Sibolga - Kas Manager v9.5</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .sticky-header { position: sticky; top: 0; z-index: 50; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .panel-content { max-height: 0; overflow: hidden; transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease-in-out; opacity: 0; }
+        .panel-content.open { max-height: 3000px; opacity: 1; }
+        .rotate-icon { transition: transform 0.3s; }
+        .rotate-icon.open { transform: rotate(180deg); }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        
+        /* Modal Styles */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; items-end; z-index: 100; backdrop-filter: blur(3px); }
+        .modal.active { display: flex; }
+        .modal-content { background: white; width: 100%; max-width: 600px; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.3s ease-out; max-height: 85vh; overflow-y: auto; }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        
+        /* Print Styles for Nota */
+        @media print {
+            body * { visibility: hidden; }
+            #notaPrintArea, #notaPrintArea * { visibility: visible; }
+            #notaPrintArea { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; background: white; color: black; }
+            .no-print { display: none !important; }
+        }
+        
+        .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 150; display: flex; justify-content: center; items-center; backdrop-filter: blur(2px); flex-direction: column; gap: 10px; }
+    </style>
+</head>
+<body class="min-h-screen pb-48 text-slate-800">
+
+    <div id="mainLoader" class="loading-overlay hidden">
+        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-900"></div>
+        <p class="text-xs font-bold text-slate-600 animate-pulse">Sinkronisasi Data...</p>
+    </div>
+
+    <header class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-6 pb-2 sticky-header rounded-b-[2.5rem] shadow-2xl z-40">
+        <div class="max-w-4xl mx-auto px-6">
+            <div class="flex justify-between items-start mb-6">
+                <div onclick="ubahNamaProyek()">
+                    <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-1">Project Dashboard</p>
+                    <h1 id="displayNamaProyek" class="text-xl font-black text-white uppercase tracking-tight">PROYEK SIBOLGA</h1>
+                    <p class="text-[9px] text-green-400 flex items-center gap-1">● Online Connected</p>
+                </div>
+                <div class="text-right bg-white/10 px-4 py-2 rounded-2xl backdrop-blur-sm border border-white/5">
+                    <p class="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Sisa Saldo</p>
+                    <h2 id="saldoUtama" class="text-xl font-black text-yellow-400">Rp ...</h2>
+                </div>
+            </div>
+            <p class="text-[9px] text-slate-500 font-bold mb-2 pl-1 uppercase">Klik kategori untuk laporan detail:</p>
+            <div id="topCategoryScroll" class="flex gap-3 overflow-x-auto hide-scroll pb-2 mb-4"></div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto p-4 space-y-4 -mt-4 relative z-30">
+        
+        <section class="glass-panel p-5 rounded-[2rem] shadow-lg border border-slate-100">
+            <div class="flex bg-slate-100 p-1 rounded-xl mb-4">
+                <button onclick="setType('KELUAR')" id="tabKeluar" class="flex-1 py-2 rounded-lg text-[10px] font-black bg-white shadow-sm text-rose-600">KELUAR</button>
+                <button onclick="setType('MASUK')" id="tabMasuk" class="flex-1 py-2 rounded-lg text-[10px] font-black text-slate-400">MASUK</button>
+            </div>
+            <div class="space-y-3">
+                <input type="hidden" id="editIndex"> 
+                <input type="hidden" id="transType" value="KELUAR">
+                <div class="flex gap-2">
+                    <input type="date" id="tgl" class="bg-slate-50 border px-2 rounded-lg text-xs font-bold w-1/3">
+                    <select id="kategori" class="bg-slate-50 border px-2 py-3 rounded-lg text-xs font-bold w-2/3">
+                        <option value="Material">🏗️ Material</option>
+                        <option value="Upah">👷 Upah</option>
+                        <option value="Uang Makan">🍱 Makan</option>
+                        <option value="Transport">🚚 BBM</option>
+                        <option value="Sewa Alat">🚜 Alat</option>
+                        <option value="Kantor">📂 Kantor</option>
+                        <option value="Lainnya">⚙️ Lainnya</option>
+                    </select>
+                </div>
+                <input type="text" id="ket" placeholder="Keterangan..." class="w-full bg-slate-50 border p-3 rounded-xl text-sm font-medium">
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">Rp</span>
+                    <input type="number" id="jumlah" placeholder="0" class="w-full bg-slate-50 border p-3 pl-8 rounded-xl text-lg font-black">
+                </div>
+                <button onclick="kirimData()" id="btnSimpan" class="w-full bg-slate-900 text-yellow-400 py-3 rounded-xl font-black text-xs tracking-widest shadow-lg active:scale-95 transition-all">SIMPAN DATA</button>
+            </div>
+        </section>
+
+        <section>
+            <button onclick="toggleSection('panelTransaksi', 'iconTransaksi')" class="w-full bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-100 p-2 rounded-lg text-blue-600">📝</div>
+                    <div class="text-left"><h3 class="text-sm font-black text-slate-800">Riwayat Transaksi</h3><p class="text-[10px] text-slate-400">Live Database</p></div>
+                </div>
+                <div id="iconTransaksi" class="bg-slate-50 p-2 rounded-full rotate-icon open">▼</div>
+            </button>
+            <div id="panelTransaksi" class="panel-content open mt-2">
+                 <div class="bg-white p-3 rounded-xl border border-slate-100 mb-3 flex gap-2">
+                    <select id="filterKategori" onchange="renderAll()" class="bg-slate-100 p-2 rounded-lg text-[10px] font-bold w-1/3">
+                        <option value="">Semua</option>
+                        <option value="Material">Material</option>
+                        <option value="Upah">Upah</option>
+                        <option value="Uang Makan">Makan</option>
+                        <option value="Transport">BBM</option>
+                        <option value="Sewa Alat">Alat</option>
+                        <option value="Kantor">Kantor</option>
+                    </select>
+                    <input type="text" id="searchBar" oninput="renderAll()" placeholder="Cari..." class="flex-1 bg-slate-50 p-2 rounded-lg text-xs font-bold border">
+                     <button onclick="refreshData()" class="bg-slate-200 px-3 rounded-lg text-xs hover:bg-slate-300 transition-colors">🔄</button>
+                </div>
+                <div id="tabelContainer" class="space-y-3"></div>
+            </div>
+        </section>
+
+        <section>
+             <button onclick="toggleSection('panelMingguan', 'iconMingguan')" class="w-full bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100">
+                <div class="flex items-center gap-3"><div class="bg-amber-100 p-2 rounded-lg text-amber-600">📊</div><div class="text-left"><h3 class="text-sm font-black text-slate-800">Grafik Mingguan</h3></div></div>
+                <div id="iconMingguan" class="bg-slate-50 p-2 rounded-full rotate-icon">▼</div>
+            </button>
+            <div id="panelMingguan" class="panel-content mt-2">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 h-64"><canvas id="chartMingguan"></canvas></div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl bg-slate-900/90 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl flex gap-2 z-50">
+         <button onclick="shareWA()" class="flex-1 bg-green-600 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg">💬 Share WA</button>
+         <button onclick="window.open(SCRIPT_URL.replace('/exec','/edit'), '_blank')" class="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg">📂 Buka Sheet</button>
+    </footer>
+
+    <div id="modalDetail" class="modal" onclick="closeModal('modalDetail')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase">Laporan Detail</p>
+                    <h3 id="modalTitle" class="text-xl font-black text-slate-800">Kategori</h3>
+                </div>
+                <button onclick="closeModal('modalDetail')" class="bg-slate-100 p-2 rounded-full text-xs">✕</button>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
+                <p class="text-xs text-slate-500 font-medium">Total Pengeluaran</p>
+                <p id="modalTotal" class="text-2xl font-black text-slate-800">Rp 0</p>
+            </div>
+            <div id="modalList" class="space-y-3 pb-8"></div>
+        </div>
+    </div>
+
+    <div id="modalNota" class="modal" onclick="closeModal('modalNota')">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4 no-print">
+                <h3 class="text-lg font-black text-slate-800">Pratinjau Nota</h3>
+                <div class="flex gap-2">
+                    <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold">🖨️ Print</button>
+                    <button onclick="closeModal('modalNota')" class="bg-slate-100 p-2 rounded-lg text-xs">✕</button>
+                </div>
+            </div>
+            
+            <div id="notaPrintArea" class="bg-white border-2 border-slate-800 p-6 rounded-none text-slate-900 font-mono">
+                <div class="border-b-2 border-slate-800 pb-4 mb-4 flex justify-between items-start">
+                    <div>
+                        <h2 class="text-2xl font-black uppercase tracking-widest">BUKTI KAS KELUAR</h2>
+                        <p class="text-sm font-bold mt-1" id="notaProyekName">PROYEK SIBOLGA</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs font-bold">NO: <span id="notaId">TX-000</span></p>
+                        <p class="text-xs">TGL: <span id="notaTgl">01/01/2026</span></p>
+                    </div>
+                </div>
+                
+                <div class="space-y-4 mb-8">
+                    <div class="flex">
+                        <span class="w-32 font-bold text-sm">Dibayarkan Kepada</span>
+                        <span class="font-bold text-sm">: __________________________</span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-32 font-bold text-sm">Uang Sejumlah</span>
+                        <span class="font-bold text-sm bg-slate-100 px-2">: <span id="notaJml">Rp 0</span></span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-32 font-bold text-sm">Untuk Pembayaran</span>
+                        <span class="font-bold text-sm italic">: <span id="notaKet">Keterangan...</span></span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-32 font-bold text-sm">Kategori</span>
+                        <span class="text-sm border border-slate-800 px-2 py-0.5 rounded">: <span id="notaKat">Material</span></span>
+                    </div>
+                </div>
+
+                <div class="flex justify-between mt-12 text-center text-xs font-bold">
+                    <div class="w-1/3">
+                        <p class="mb-12">Disetujui Oleh,</p>
+                        <p>( ....................... )</p>
+                        <p>Site Manager</p>
+                    </div>
+                    <div class="w-1/3">
+                        <p class="mb-12">Dibayar Oleh,</p>
+                        <p>( ....................... )</p>
+                        <p>Kasir/Admin</p>
+                    </div>
+                    <div class="w-1/3">
+                        <p class="mb-12">Diterima Oleh,</p>
+                        <p>( ....................... )</p>
+                        <p>Penerima</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNrx5DNH5cDA7VLzhK4nRh8njljjV2VZcDbz7kSwdFqYvOWeyFzfktRg244qKkk0g0og/exec"; 
+        let namaProyek = localStorage.getItem('nama_proyek') || 'PROYEK SIBOLGA';
+        // ==========================================
+        
+        let database = [];
+        let chartMingguan = null;
+        let lastRekap = {}; let lastIn = 0; let lastOut = 0;
+
+        // Set Nama Proyek
+        document.getElementById('displayNamaProyek').innerText = namaProyek;
+        document.getElementById('notaProyekName').innerText = namaProyek;
+        document.getElementById('tgl').valueAsDate = new Date();
+        refreshData();
+
+        function ubahNamaProyek() {
+            const baru = prompt("Ganti Nama Proyek:", namaProyek);
+            if(baru) { 
+                namaProyek = baru.toUpperCase(); 
+                localStorage.setItem('nama_proyek', namaProyek); 
+                document.getElementById('displayNamaProyek').innerText = namaProyek; 
+                document.getElementById('notaProyekName').innerText = namaProyek;
+            }
+        }
+
+        async function refreshData() {
+            toggleLoader(true);
+            try {
+                const response = await fetch(SCRIPT_URL + "?action=read&tmp=" + Date.now());
+                const data = await response.json();
+                if(Array.isArray(data)) { database = data; renderAll(); }
+            } catch (error) { alert("Gagal sinkronisasi."); } 
+            finally { toggleLoader(false); }
+        }
+
+        async function kirimData() {
+            const type = document.getElementById('transType').value;
+            const kat = type === 'MASUK' ? 'Uang Masuk' : document.getElementById('kategori').value;
+            const tgl = document.getElementById('tgl').value;
+            const ket = document.getElementById('ket').value;
+            const jumlah = document.getElementById('jumlah').value;
+            const editId = document.getElementById('editIndex').value;
+
+            if(!tgl || !ket || !jumlah) return alert("Data tidak lengkap!");
+
+            toggleLoader(true);
+            const id = editId ? editId : "TX-" + Date.now();
+            const action = editId ? "edit" : "insert";
+            const formData = new FormData();
+            formData.append('action', action); formData.append('id', id); formData.append('tgl', tgl);
+            formData.append('kat', kat); formData.append('ket', ket); formData.append('jumlah', jumlah); formData.append('type', type);
+
+            try { await fetch(SCRIPT_URL, { method: 'POST', body: formData }); resetForm(); setTimeout(() => { refreshData(); }, 1000); } 
+            catch (error) { alert("Gagal simpan!"); }
+        }
+
+        async function hapusData(id) {
+            if(!confirm("Hapus data ini?")) return;
+            toggleLoader(true);
+            const formData = new FormData(); formData.append('action', 'delete'); formData.append('id', id);
+            try { await fetch(SCRIPT_URL, { method: 'POST', body: formData }); setTimeout(() => { refreshData(); }, 1000); } 
+            catch(e) { toggleLoader(false); }
+        }
+
+        function renderAll() {
+            const container = document.getElementById('tabelContainer');
+            const search = document.getElementById('searchBar').value.toLowerCase();
+            const filterKat = document.getElementById('filterKategori').value;
+            
+            container.innerHTML = '';
+            let tMasuk = 0, tKeluar = 0;
+            let rekap = { 'Material': 0, 'Upah': 0, 'Uang Makan': 0, 'Transport': 0, 'Sewa Alat': 0, 'Kantor': 0, 'Lainnya': 0 };
+
+            let sorted = [...database].sort((a, b) => new Date(b.tgl) - new Date(a.tgl));
+
+            database.forEach(item => {
+                let nominal = parseInt(item.jumlah) || 0;
+                if(item.type === 'MASUK') tMasuk += nominal;
+                else { tKeluar += nominal; if(rekap[item.kat] !== undefined) rekap[item.kat] += nominal; else rekap['Lainnya'] = (rekap['Lainnya']||0) + nominal; }
+            });
+            
+            lastIn = tMasuk; lastOut = tKeluar; lastRekap = rekap;
+            renderHeader(rekap, tKeluar);
+
+            let filtered = sorted.filter(item => {
+                const matchS = item.ket.toLowerCase().includes(search);
+                const matchK = filterKat ? item.kat === filterKat : true;
+                return matchS && matchK;
+            });
+
+            const groups = filtered.reduce((groups, item) => {
+                const date = item.tgl; if (!groups[date]) groups[date] = []; groups[date].push(item); return groups;
+            }, {});
+
+            Object.keys(groups).forEach(date => {
+                let dayTotal = 0; let rows = '';
+                groups[date].forEach(item => {
+                    let nominal = parseInt(item.jumlah) || 0;
+                    const isMasuk = item.type === 'MASUK';
+                    if(!isMasuk) dayTotal += nominal;
+                    rows += `
+                        <div class="flex justify-between items-center p-3 border-b border-slate-50 last:border-none hover:bg-slate-50">
+                            <div class="flex-1">
+                                <div class="flex gap-2 items-center">
+                                    <span class="text-[9px] px-1.5 rounded ${isMasuk?'bg-green-100 text-green-700':'bg-slate-100 text-slate-500'} font-bold">${item.kat}</span>
+                                </div>
+                                <div class="text-xs font-bold text-slate-700 mt-1">${item.ket}</div>
+                            </div>
+                            <div class="text-right flex items-center gap-3">
+                                <div>
+                                    <div class="text-xs font-black ${isMasuk?'text-green-600':'text-slate-800'}">${isMasuk?'+':'-'} ${nominal.toLocaleString()}</div>
+                                    <div class="flex justify-end gap-2 mt-1 opacity-50"><button onclick="editData('${item.id}')" class="text-[9px]">✎</button><button onclick="hapusData('${item.id}')" class="text-[9px] text-red-500">🗑</button></div>
+                                </div>
+                                ${!isMasuk ? `<button onclick="openNota('${item.id}')" class="bg-slate-800 text-white p-2 rounded-lg text-[10px] shadow-lg active:scale-95 transition-transform" title="Cetak Nota">📄</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML += `<div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-2"><div class="bg-slate-50 px-3 py-2 flex justify-between text-[10px] font-bold text-slate-500"><span>${date}</span><span>Total: ${dayTotal.toLocaleString()}</span></div>${rows}</div>`;
+            });
+
+            document.getElementById('saldoUtama').innerText = `Rp ${(tMasuk - tKeluar).toLocaleString()}`;
+            updateChart(database);
+        }
+
+        function renderHeader(rekap, total) {
+            const el = document.getElementById('topCategoryScroll'); el.innerHTML = '';
+            el.innerHTML += `<div class="flex-shrink-0 bg-white/10 px-3 py-1 rounded-lg border border-white/5 flex flex-col justify-center min-w-[80px] cursor-pointer hover:bg-white/20 transition-colors" onclick="alert('Ini Total Keseluruhan')"><span class="text-[8px] text-rose-300 uppercase font-bold">Total Keluar</span><span class="text-[10px] font-black text-white">Rp ${(total/1000).toFixed(0)}k</span></div>`;
+            
+            Object.entries(rekap).forEach(([k,v]) => {
+                if(v > 0) el.innerHTML += `<div onclick="openDetail('${k}')" class="flex-shrink-0 bg-white/10 px-3 py-1 rounded-lg border border-white/5 flex flex-col justify-center cursor-pointer hover:bg-white/20 transition-colors"><span class="text-[8px] text-slate-300 uppercase">${k}</span><span class="text-[10px] font-bold text-white">Rp ${(v/1000).toFixed(0)}k</span></div>`;
+            });
+        }
+
+        // --- NEW FEATURE 1: MODAL DETAIL PER KATEGORI ---
+        function openDetail(kategori) {
+            document.getElementById('modalTitle').innerText = kategori;
+            const filtered = database.filter(item => item.kat === kategori && item.type === 'KELUAR');
+            const total = filtered.reduce((acc, curr) => acc + parseInt(curr.jumlah), 0);
+            
+            document.getElementById('modalTotal').innerText = `Rp ${total.toLocaleString()}`;
+            
+            const list = document.getElementById('modalList');
+            list.innerHTML = '';
+            filtered.sort((a,b) => new Date(b.tgl) - new Date(a.tgl)).forEach(item => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center border-b pb-2">
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold">${item.tgl}</p>
+                            <p class="text-xs font-bold text-slate-800">${item.ket}</p>
+                        </div>
+                        <p class="text-xs font-bold text-slate-800">Rp ${parseInt(item.jumlah).toLocaleString()}</p>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('modalDetail').classList.add('active');
+        }
+
+        // --- NEW FEATURE 2: MODAL NOTA BON ---
+        function openNota(id) {
+            const item = database.find(x => x.id === id);
+            if(!item) return;
+
+            document.getElementById('notaId').innerText = item.id.substring(item.id.length - 6).toUpperCase(); // Ambil 6 digit terakhir
+            document.getElementById('notaTgl').innerText = item.tgl;
+            document.getElementById('notaJml').innerText = `Rp ${parseInt(item.jumlah).toLocaleString()}`;
+            document.getElementById('notaKet').innerText = item.ket;
+            document.getElementById('notaKat').innerText = item.kat;
+            
+            document.getElementById('modalNota').classList.add('active');
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        // --- STANDARD FUNCTIONS ---
+        function updateChart(data) {
+            const ctx = document.getElementById('chartMingguan').getContext('2d');
+            const weeks = {}; 
+            data.forEach(item => { if (item.type === 'KELUAR') { const d = new Date(item.tgl); if(!isNaN(d)) { const sun = new Date(d); sun.setDate(d.getDate()-d.getDay()); const k = sun.toISOString().split('T')[0]; weeks[k] = (weeks[k]||0) + parseInt(item.jumlah); } }});
+            const keys = Object.keys(weeks).sort().slice(-5);
+            if(chartMingguan) chartMingguan.destroy();
+            chartMingguan = new Chart(ctx, { type: 'bar', data: { labels: keys, datasets: [{data: keys.map(k=>weeks[k]), backgroundColor:'#fbbf24', borderRadius:4}] }, options:{plugins:{legend:{display:false}}, maintainAspectRatio:false} });
+        }
+
+        function editData(id) { const d = database.find(x => x.id === id); if(!d) return; setType(d.type); document.getElementById('tgl').value = d.tgl; document.getElementById('ket').value = d.ket; document.getElementById('jumlah').value = d.jumlah; if(d.type === 'KELUAR') document.getElementById('kategori').value = d.kat; document.getElementById('editIndex').value = id; document.getElementById('btnSimpan').innerText = "UPDATE KE CLOUD ☁️"; window.scrollTo({top:0, behavior:'smooth'}); }
+        function resetForm() { document.getElementById('editIndex').value = ""; document.getElementById('ket').value = ""; document.getElementById('jumlah').value = ""; document.getElementById('btnSimpan').innerText = "SIMPAN KE CLOUD ☁️"; setType('KELUAR'); }
+        function setType(val) { document.getElementById('transType').value = val; const isMasuk = val === 'MASUK'; document.getElementById('tabMasuk').className = isMasuk ? "flex-1 py-2 rounded-lg text-[10px] font-black bg-white shadow-sm text-green-600" : "flex-1 py-2 rounded-lg text-[10px] font-black text-slate-400"; document.getElementById('tabKeluar').className = !isMasuk ? "flex-1 py-2 rounded-lg text-[10px] font-black bg-white shadow-sm text-rose-600" : "flex-1 py-2 rounded-lg text-[10px] font-black text-slate-400"; document.getElementById('kategori').style.display = isMasuk ? 'none' : 'block'; }
+        function toggleSection(id, icon) { document.getElementById(id).classList.toggle('open'); document.getElementById(icon).classList.toggle('open'); }
+        function toggleLoader(show) { document.getElementById('mainLoader').style.display = show ? 'flex' : 'none'; }
+        function shareWA() { let msg = `*LAPORAN ${namaProyek}*\nSaldo: Rp ${(lastIn-lastOut).toLocaleString()}\n\n*Rincian:*\n`; Object.entries(lastRekap).forEach(([k,v])=>{ if(v>0) msg+=`• ${k}: ${v.toLocaleString()}\n` }); window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank'); }
+    </script>
+</body>
+</html>

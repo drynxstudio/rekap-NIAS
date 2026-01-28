@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Proyek Nias - Manager v9.7</title>
+    <title>Proyek Sibolga - Manager v9.8</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
         .sticky-header { position: sticky; top: 0; z-index: 50; }
@@ -17,28 +17,47 @@
         .rotate-icon.open { transform: rotate(180deg); }
         .hide-scroll::-webkit-scrollbar { display: none; }
         
-        /* Modal Detail */
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; items-end; z-index: 100; backdrop-filter: blur(3px); }
-        .modal.active { display: flex; }
-        .modal-content { background: white; width: 100%; max-width: 600px; border-radius: 24px 24px 0 0; padding: 24px; animation: slideUp 0.3s ease-out; max-height: 85vh; overflow-y: auto; }
-        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-
         .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 150; display: flex; justify-content: center; items-center; backdrop-filter: blur(2px); flex-direction: column; gap: 10px; }
+
+        /* =========================================
+           CSS KHUSUS PRINT / PDF (FORMAT BANK)
+           ========================================= */
+        @media print {
+            @page { size: A4; margin: 10mm; }
+            body * { visibility: hidden; }
+            #areaLaporanMutasi, #areaLaporanMutasi * { visibility: visible; }
+            #areaLaporanMutasi { 
+                position: absolute; left: 0; top: 0; width: 100%; 
+                background: white; color: black; font-family: 'Arial', sans-serif;
+                font-size: 10pt;
+            }
+            .no-print { display: none !important; }
+            /* Table Styling ala Bank */
+            table.bank-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            table.bank-table th { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 5px; text-align: left; font-weight: bold; text-transform: uppercase; font-size: 9pt; }
+            table.bank-table td { border-bottom: 1px solid #ddd; padding: 5px; vertical-align: top; }
+            table.bank-table tr:last-child td { border-bottom: 2px solid #000; }
+            .mono { font-family: 'JetBrains Mono', monospace; }
+        }
+
+        /* Screen Only (Sembunyikan area laporan saat mode normal) */
+        #areaLaporanMutasi { display: none; }
+        @media print { #areaLaporanMutasi { display: block; } }
     </style>
 </head>
 <body class="min-h-screen pb-48 text-slate-800">
 
     <div id="mainLoader" class="loading-overlay hidden">
         <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-900"></div>
-        <p class="text-xs font-bold text-slate-600 animate-pulse">Sinkronisasi Data...</p>
+        <p class="text-xs font-bold text-slate-600 animate-pulse">Memuat Data...</p>
     </div>
 
-    <header class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-6 pb-2 sticky-header rounded-b-[2.5rem] shadow-2xl z-40">
+    <header class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white pt-6 pb-2 sticky-header rounded-b-[2.5rem] shadow-2xl z-40 no-print">
         <div class="max-w-4xl mx-auto px-6">
             <div class="flex justify-between items-start mb-6">
                 <div onclick="ubahNamaProyek()">
                     <p class="text-[10px] font-bold text-slate-400 tracking-widest uppercase mb-1">Project Dashboard</p>
-                    <h1 id="displayNamaProyek" class="text-xl font-black text-white uppercase tracking-tight">PROYEK NIAS</h1>
+                    <h1 id="displayNamaProyek" class="text-xl font-black text-white uppercase tracking-tight">PROYEK SIBOLGA</h1>
                     <p class="text-[9px] text-green-400 flex items-center gap-1">● Online Connected</p>
                 </div>
                 <div class="text-right bg-white/10 px-4 py-2 rounded-2xl backdrop-blur-sm border border-white/5">
@@ -46,12 +65,11 @@
                     <h2 id="saldoUtama" class="text-xl font-black text-yellow-400">Rp ...</h2>
                 </div>
             </div>
-            <p class="text-[9px] text-slate-500 font-bold mb-2 pl-1 uppercase">Klik kategori untuk laporan detail:</p>
             <div id="topCategoryScroll" class="flex gap-3 overflow-x-auto hide-scroll pb-2 mb-4"></div>
         </div>
     </header>
 
-    <main class="max-w-4xl mx-auto p-4 space-y-4 -mt-4 relative z-30">
+    <main class="max-w-4xl mx-auto p-4 space-y-4 -mt-4 relative z-30 no-print">
         
         <section class="glass-panel p-5 rounded-[2rem] shadow-lg border border-slate-100">
             <div class="flex bg-slate-100 p-1 rounded-xl mb-4">
@@ -92,15 +110,6 @@
             </button>
             <div id="panelTransaksi" class="panel-content open mt-2">
                  <div class="bg-white p-3 rounded-xl border border-slate-100 mb-3 flex gap-2">
-                    <select id="filterKategori" onchange="renderAll()" class="bg-slate-100 p-2 rounded-lg text-[10px] font-bold w-1/3">
-                        <option value="">Semua</option>
-                        <option value="Material">Material</option>
-                        <option value="Upah">Upah</option>
-                        <option value="Uang Makan">Makan</option>
-                        <option value="Transport">BBM</option>
-                        <option value="Sewa Alat">Alat</option>
-                        <option value="Kantor">Kantor</option>
-                    </select>
                     <input type="text" id="searchBar" oninput="renderAll()" placeholder="Cari..." class="flex-1 bg-slate-50 p-2 rounded-lg text-xs font-bold border">
                      <button onclick="refreshData()" class="bg-slate-200 px-3 rounded-lg text-xs hover:bg-slate-300 transition-colors">🔄</button>
                 </div>
@@ -112,19 +121,18 @@
             <button onclick="toggleSection('panelBulanan', 'iconBulanan')" class="w-full bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100">
                 <div class="flex items-center gap-3">
                     <div class="bg-purple-100 p-2 rounded-lg text-purple-600">📅</div>
-                    <div class="text-left"><h3 class="text-sm font-black text-slate-800">Laporan Bulanan</h3><p class="text-[10px] text-slate-400">Total Per Bulan</p></div>
+                    <div class="text-left"><h3 class="text-sm font-black text-slate-800">Laporan Bulanan</h3><p class="text-[10px] text-slate-400">Rekap Per Bulan</p></div>
                 </div>
                 <div id="iconBulanan" class="bg-slate-50 p-2 rounded-full rotate-icon">▼</div>
             </button>
             <div id="panelBulanan" class="panel-content mt-2">
-                 <div id="monthlyContainer" class="space-y-3">
-                     </div>
+                 <div id="monthlyContainer" class="space-y-3"></div>
             </div>
         </section>
 
         <section>
              <button onclick="toggleSection('panelMingguan', 'iconMingguan')" class="w-full bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100">
-                <div class="flex items-center gap-3"><div class="bg-amber-100 p-2 rounded-lg text-amber-600">📊</div><div class="text-left"><h3 class="text-sm font-black text-slate-800">Grafik 30 Hari Terakhir</h3></div></div>
+                <div class="flex items-center gap-3"><div class="bg-amber-100 p-2 rounded-lg text-amber-600">📊</div><div class="text-left"><h3 class="text-sm font-black text-slate-800">Grafik 30 Hari</h3></div></div>
                 <div id="iconMingguan" class="bg-slate-50 p-2 rounded-full rotate-icon">▼</div>
             </button>
             <div id="panelMingguan" class="panel-content mt-2">
@@ -133,25 +141,59 @@
         </section>
     </main>
 
-    <footer class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl bg-slate-900/90 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl flex gap-2 z-50">
-         <button onclick="shareWA()" class="flex-1 bg-green-600 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg">💬 Share WA</button>
-         <button onclick="window.open(SCRIPT_URL.replace('/exec','/edit'), '_blank')" class="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg">📂 Buka Sheet</button>
+    <footer class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[95%] max-w-4xl bg-slate-900/90 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl flex gap-2 z-50 no-print">
+         <button onclick="shareWA()" class="flex-1 bg-green-600 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg">💬 WA</button>
+         <button onclick="printMutasi()" class="flex-1 bg-slate-800 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg border border-slate-600">🖨️ LAPORAN PDF</button>
+         <button onclick="eksporExcel()" class="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-bold text-[10px] uppercase shadow-lg">📊 EXCEL</button>
     </footer>
 
-    <div id="modalDetail" class="modal" onclick="closeModal('modalDetail')">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="flex justify-between items-center mb-4">
-                <div>
-                    <p class="text-[10px] text-slate-400 font-bold uppercase">Laporan Detail</p>
-                    <h3 id="modalTitle" class="text-xl font-black text-slate-800">Kategori</h3>
-                </div>
-                <button onclick="closeModal('modalDetail')" class="bg-slate-100 p-2 rounded-full text-xs">✕</button>
+    <div id="areaLaporanMutasi">
+        <div style="border-bottom: 2px solid black; padding-bottom: 10px; margin-bottom: 20px;">
+            <h1 style="font-size: 18pt; font-weight: bold; text-transform: uppercase; margin:0;">LAPORAN MUTASI KAS</h1>
+            <h2 id="printNamaProyek" style="font-size: 14pt; font-weight: bold; margin:5px 0 0 0; text-transform: uppercase;">PROYEK SIBOLGA</h2>
+            <p style="font-size: 10pt; margin:5px 0;">Tanggal Cetak: <span id="printTanggalCetak"></span></p>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-bottom: 20px; border: 1px solid #000; padding: 10px;">
+            <div>
+                <p>Total Pemasukan</p>
+                <p class="mono" style="font-weight: bold;" id="printTotalMasuk">Rp 0</p>
             </div>
-            <div class="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
-                <p class="text-xs text-slate-500 font-medium">Total Pengeluaran</p>
-                <p id="modalTotal" class="text-2xl font-black text-slate-800">Rp 0</p>
+            <div>
+                <p>Total Pengeluaran</p>
+                <p class="mono" style="font-weight: bold;" id="printTotalKeluar">Rp 0</p>
             </div>
-            <div id="modalList" class="space-y-3 pb-8"></div>
+            <div>
+                <p>Sisa Saldo Akhir</p>
+                <p class="mono" style="font-weight: bold; font-size: 12pt;" id="printSaldoAkhir">Rp 0</p>
+            </div>
+        </div>
+
+        <table class="bank-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">TANGGAL</th>
+                    <th style="width: 35%;">KETERANGAN</th>
+                    <th style="width: 15%;">KATEGORI</th>
+                    <th style="width: 15%; text-align: right;">MUTASI (Rp)</th>
+                    <th style="width: 20%; text-align: right;">SALDO (Rp)</th>
+                </tr>
+            </thead>
+            <tbody id="bodyMutasi">
+                </tbody>
+        </table>
+
+        <div style="margin-top: 50px; display: flex; justify-content: space-between; text-align: center;">
+            <div style="width: 30%;">
+                <p>Dibuat Oleh,</p>
+                <br><br><br>
+                <p>( Admin )</p>
+            </div>
+            <div style="width: 30%;">
+                <p>Disetujui Oleh,</p>
+                <br><br><br>
+                <p>( Site Manager )</p>
+            </div>
         </div>
     </div>
 
@@ -160,12 +202,12 @@
         // CONFIGURATION
         // ==========================================
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNrx5DNH5cDA7VLzhK4nRh8njljjV2VZcDbz7kSwdFqYvOWeyFzfktRg244qKkk0g0og/exec"; 
-        let namaProyek = localStorage.getItem('nama_proyek') || 'PROYEK NIAS';
+        let namaProyek = localStorage.getItem('nama_proyek') || 'PROYEK SIBOLGA';
         // ==========================================
         
         let database = [];
         let chartMingguan = null;
-        let lastRekap = {}; let lastIn = 0; let lastOut = 0;
+        let lastIn = 0; let lastOut = 0;
 
         document.getElementById('displayNamaProyek').innerText = namaProyek;
         document.getElementById('tgl').valueAsDate = new Date();
@@ -218,12 +260,12 @@
         function renderAll() {
             const container = document.getElementById('tabelContainer');
             const search = document.getElementById('searchBar').value.toLowerCase();
-            const filterKat = document.getElementById('filterKategori').value;
             
             container.innerHTML = '';
             let tMasuk = 0, tKeluar = 0;
             let rekap = { 'Material': 0, 'Upah': 0, 'Uang Makan': 0, 'Transport': 0, 'Sewa Alat': 0, 'Kantor': 0, 'Lainnya': 0 };
 
+            // Sortir Terbaru -> Terlama (Untuk Tampilan HP)
             let sorted = [...database].sort((a, b) => new Date(b.tgl) - new Date(a.tgl));
 
             database.forEach(item => {
@@ -232,17 +274,11 @@
                 else { tKeluar += nominal; if(rekap[item.kat] !== undefined) rekap[item.kat] += nominal; else rekap['Lainnya'] = (rekap['Lainnya']||0) + nominal; }
             });
             
-            lastIn = tMasuk; lastOut = tKeluar; lastRekap = rekap;
+            lastIn = tMasuk; lastOut = tKeluar;
             renderHeader(rekap, tKeluar);
 
-            // Filter Tampilan
-            let filtered = sorted.filter(item => {
-                const matchS = item.ket.toLowerCase().includes(search);
-                const matchK = filterKat ? item.kat === filterKat : true;
-                return matchS && matchK;
-            });
+            let filtered = sorted.filter(item => item.ket.toLowerCase().includes(search));
 
-            // Grouping Hari
             const groups = filtered.reduce((groups, item) => {
                 const date = item.tgl; if (!groups[date]) groups[date] = []; groups[date].push(item); return groups;
             }, {});
@@ -272,81 +308,82 @@
             });
 
             document.getElementById('saldoUtama').innerText = `Rp ${(tMasuk - tKeluar).toLocaleString()}`;
-            renderMonthlyReport(database); // New Feature
+            renderMonthlyReport(database); 
             updateChart(database);
         }
 
-        // --- NEW FEATURE: LAPORAN BULANAN ---
         function renderMonthlyReport(data) {
             const container = document.getElementById('monthlyContainer');
             container.innerHTML = '';
-            
             const months = {};
             data.forEach(item => {
                 const d = new Date(item.tgl);
-                const key = d.toLocaleString('id-ID', { month: 'long', year: 'numeric' }); // "Januari 2026"
+                const key = d.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
                 if(!months[key]) months[key] = { in: 0, out: 0 };
-                
                 if(item.type === 'MASUK') months[key].in += parseInt(item.jumlah);
                 else months[key].out += parseInt(item.jumlah);
             });
-
-            // Tampilkan (Sortir manual bisa ditambahkan jika perlu, ini default order kemunculan)
             Object.keys(months).forEach(key => {
                 const m = months[key];
-                container.innerHTML += `
-                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                        <div class="border-b border-slate-100 pb-2 mb-2">
-                            <h3 class="font-black text-slate-800 uppercase">${key}</h3>
-                        </div>
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-xs text-slate-500">Pemasukan</span>
-                            <span class="text-xs font-bold text-emerald-600">Rp ${m.in.toLocaleString()}</span>
-                        </div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs text-slate-500">Pengeluaran</span>
-                            <span class="text-xs font-bold text-rose-600">Rp ${m.out.toLocaleString()}</span>
-                        </div>
-                        <div class="flex justify-between items-center pt-2 border-t border-slate-50 bg-slate-50 p-2 rounded-lg">
-                            <span class="text-xs font-bold text-slate-700">Sisa Bulan Ini</span>
-                            <span class="text-sm font-black text-slate-900">Rp ${(m.in - m.out).toLocaleString()}</span>
-                        </div>
-                    </div>
-                `;
+                container.innerHTML += `<div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100"><div class="border-b border-slate-100 pb-2 mb-2"><h3 class="font-black text-slate-800 uppercase">${key}</h3></div><div class="flex justify-between items-center mb-1"><span class="text-xs text-slate-500">Pemasukan</span><span class="text-xs font-bold text-emerald-600">Rp ${m.in.toLocaleString()}</span></div><div class="flex justify-between items-center mb-2"><span class="text-xs text-slate-500">Pengeluaran</span><span class="text-xs font-bold text-rose-600">Rp ${m.out.toLocaleString()}</span></div><div class="flex justify-between items-center pt-2 border-t border-slate-50 bg-slate-50 p-2 rounded-lg"><span class="text-xs font-bold text-slate-700">Sisa Bulan Ini</span><span class="text-sm font-black text-slate-900">Rp ${(m.in - m.out).toLocaleString()}</span></div></div>`;
             });
-            
-            if(container.innerHTML === '') container.innerHTML = '<p class="text-center text-xs text-slate-400 py-4">Belum ada data bulanan.</p>';
+            if(container.innerHTML === '') container.innerHTML = '<p class="text-center text-xs text-slate-400 py-4">Belum ada data.</p>';
         }
 
         function renderHeader(rekap, total) {
             const el = document.getElementById('topCategoryScroll'); el.innerHTML = '';
             el.innerHTML += `<div class="flex-shrink-0 bg-white/10 px-3 py-1 rounded-lg border border-white/5 flex flex-col justify-center min-w-[80px]"><span class="text-[8px] text-rose-300 uppercase font-bold">Total Keluar</span><span class="text-[10px] font-black text-white">Rp ${(total/1000).toFixed(0)}k</span></div>`;
             Object.entries(rekap).forEach(([k,v]) => {
-                if(v > 0) el.innerHTML += `<div onclick="openDetail('${k}')" class="flex-shrink-0 bg-white/10 px-3 py-1 rounded-lg border border-white/5 flex flex-col justify-center cursor-pointer hover:bg-white/20 transition-colors"><span class="text-[8px] text-slate-300 uppercase">${k}</span><span class="text-[10px] font-bold text-white">Rp ${(v/1000).toFixed(0)}k</span></div>`;
+                if(v > 0) el.innerHTML += `<div class="flex-shrink-0 bg-white/10 px-3 py-1 rounded-lg border border-white/5 flex flex-col justify-center"><span class="text-[8px] text-slate-300 uppercase">${k}</span><span class="text-[10px] font-bold text-white">Rp ${(v/1000).toFixed(0)}k</span></div>`;
             });
         }
 
-        function openDetail(kategori) {
-            document.getElementById('modalTitle').innerText = kategori;
-            const filtered = database.filter(item => item.kat === kategori && item.type === 'KELUAR');
-            const total = filtered.reduce((acc, curr) => acc + parseInt(curr.jumlah), 0);
-            document.getElementById('modalTotal').innerText = `Rp ${total.toLocaleString()}`;
-            const list = document.getElementById('modalList');
-            list.innerHTML = '';
-            filtered.sort((a,b) => new Date(b.tgl) - new Date(a.tgl)).forEach(item => {
-                list.innerHTML += `<div class="flex justify-between items-center border-b pb-2"><div><p class="text-[10px] text-slate-400 font-bold">${item.tgl}</p><p class="text-xs font-bold text-slate-800">${item.ket}</p></div><p class="text-xs font-bold text-slate-800">Rp ${parseInt(item.jumlah).toLocaleString()}</p></div>`;
-            });
-            document.getElementById('modalDetail').classList.add('active');
-        }
+        // ==========================================
+        // LOGIC CETAK MUTASI (FORMAT BANK)
+        // ==========================================
+        function printMutasi() {
+            // 1. Update Header Laporan
+            document.getElementById('printNamaProyek').innerText = namaProyek;
+            document.getElementById('printTanggalCetak').innerText = new Date().toLocaleString('id-ID');
+            document.getElementById('printTotalMasuk').innerText = `Rp ${lastIn.toLocaleString()}`;
+            document.getElementById('printTotalKeluar').innerText = `Rp ${lastOut.toLocaleString()}`;
+            document.getElementById('printSaldoAkhir').innerText = `Rp ${(lastIn - lastOut).toLocaleString()}`;
 
-        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+            // 2. Siapkan Data Urut Kronologis (Lama -> Baru)
+            let cronData = [...database].sort((a, b) => new Date(a.tgl) - new Date(b.tgl));
+
+            // 3. Generate Tabel & Hitung Saldo Berjalan
+            const tbody = document.getElementById('bodyMutasi');
+            tbody.innerHTML = '';
+            let runningBalance = 0;
+
+            cronData.forEach(item => {
+                let nominal = parseInt(item.jumlah);
+                let isMasuk = item.type === 'MASUK';
+                
+                // Update Saldo
+                if(isMasuk) runningBalance += nominal;
+                else runningBalance -= nominal;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="mono">${item.tgl}</td>
+                        <td>${item.ket}</td>
+                        <td style="font-size: 8pt; text-transform: uppercase;">${item.kat}</td>
+                        <td class="mono" style="text-align: right;">${isMasuk ? '+' : '-'} ${nominal.toLocaleString()}</td>
+                        <td class="mono" style="text-align: right; font-weight: bold;">${runningBalance.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+
+            // 4. Trigger Print
+            window.print();
+        }
 
         function updateChart(data) {
             const ctx = document.getElementById('chartMingguan').getContext('2d');
             const weeks = {}; 
-            // Ambil 30-35 hari terakhir (dikelompokkan per minggu untuk kerapian visual)
             data.forEach(item => { if (item.type === 'KELUAR') { const d = new Date(item.tgl); if(!isNaN(d)) { const sun = new Date(d); sun.setDate(d.getDate()-d.getDay()); const k = sun.toISOString().split('T')[0]; weeks[k] = (weeks[k]||0) + parseInt(item.jumlah); } }});
-            // Tampilkan 5 Minggu Terakhir (~1 Bulan Lebih Dikit)
             const keys = Object.keys(weeks).sort().slice(-5);
             if(chartMingguan) chartMingguan.destroy();
             chartMingguan = new Chart(ctx, { type: 'bar', data: { labels: keys.map(k=> new Date(k).toLocaleDateString('id-ID', {day:'numeric', month:'short'})), datasets: [{label:'Pengeluaran', data: keys.map(k=>weeks[k]), backgroundColor:'#fbbf24', borderRadius:4}] }, options:{plugins:{legend:{display:false}}, maintainAspectRatio:false, scales:{y:{grid:{display:true, borderDash:[5,5]}}, x:{grid:{display:false}}} } });
@@ -357,7 +394,8 @@
         function setType(val) { document.getElementById('transType').value = val; const isMasuk = val === 'MASUK'; document.getElementById('tabMasuk').className = isMasuk ? "flex-1 py-2 rounded-lg text-[10px] font-black bg-white shadow-sm text-green-600" : "flex-1 py-2 rounded-lg text-[10px] font-black text-slate-400"; document.getElementById('tabKeluar').className = !isMasuk ? "flex-1 py-2 rounded-lg text-[10px] font-black bg-white shadow-sm text-rose-600" : "flex-1 py-2 rounded-lg text-[10px] font-black text-slate-400"; document.getElementById('kategori').style.display = isMasuk ? 'none' : 'block'; }
         function toggleSection(id, icon) { document.getElementById(id).classList.toggle('open'); document.getElementById(icon).classList.toggle('open'); }
         function toggleLoader(show) { document.getElementById('mainLoader').style.display = show ? 'flex' : 'none'; }
-        function shareWA() { let msg = `*LAPORAN ${namaProyek}*\nSaldo: Rp ${(lastIn-lastOut).toLocaleString()}\n\n*Rincian:*\n`; Object.entries(lastRekap).forEach(([k,v])=>{ if(v>0) msg+=`• ${k}: ${v.toLocaleString()}\n` }); window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank'); }
+        function shareWA() { let msg = `*LAPORAN ${namaProyek}*\nSaldo: Rp ${(lastIn-lastOut).toLocaleString()}\n\n*Rincian:*\n`; window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank'); }
+        function eksporExcel() { let csv = "Tgl,Kat,Ket,Jml,Tipe\n"; database.forEach(i => csv += `${i.tgl},${i.kat},${i.ket.replace(/,/g,' ')},${i.jumlah},${i.type}\n`); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'})); a.download = 'REKAP.csv'; a.click(); }
     </script>
 </body>
 </html>
